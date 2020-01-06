@@ -6,6 +6,7 @@
 #define FTP_SAVE_MAX_WAIT_TIME 120
 #define N_MESSAGE 5
 #define PICTURE_DEBUG 0
+
 void *Message_Group[N_MESSAGE];
 
 OS_EVENT *gprs_task_en ;
@@ -14,13 +15,13 @@ unsigned char g_respose_flag = 0;
 unsigned char g_self_report_flag = 0;
 
 OS_STK START_TASK_STK[START_STK_SIZE] = {0};
-static OS_STK FTP_TASK_STK[FTP_STK_SIZE] = {0};
-static OS_STK GPRS_TASK_STK[GPRS_STK_SIZE] = {0};
-static OS_STK BASIC_MESSAGE_TASK_STK[BASIC_MESSAGE_TASK_STK_SIZE] = {0};
-static OS_STK Receive_COMMAND_TASK_STK[Receive_COMMAND_TASK_STK_SIZE] = {0};
-static OS_STK BLUETOOTH_TASK_STK[BLUETOOTH_TASK_STK_SIZE] = {0};
-static OS_STK STOP_MODE_TASK_STK[STOP_MODE_TASK_SIZE] = {0};
-static OS_STK  SYSTEM_DATA_BROADCAST_STK[SYSTEM_DATA_BROADCAST_STK_SIZE] = {0};
+static OS_STK FTP_TASK_STK[FTP_STK_SIZE] = {0};                                 //文件服务器
+static OS_STK GPRS_TASK_STK[GPRS_STK_SIZE] = {0};                               //4G网络GPRS
+static OS_STK BASIC_MESSAGE_TASK_STK[BASIC_MESSAGE_TASK_STK_SIZE] = {0};        //基础信息测试
+static OS_STK Receive_COMMAND_TASK_STK[Receive_COMMAND_TASK_STK_SIZE] = {0};		//接收指令
+static OS_STK BLUETOOTH_TASK_STK[BLUETOOTH_TASK_STK_SIZE] = {0};								//蓝牙
+static OS_STK STOP_MODE_TASK_STK[STOP_MODE_TASK_SIZE] = {0};										//休眠	
+static OS_STK  SYSTEM_DATA_BROADCAST_STK[SYSTEM_DATA_BROADCAST_STK_SIZE] = {0};		//系统数据
 
 OS_STK_DATA StackBytes;
 __align(8) static OS_STK AppTaskXXXStk[200];
@@ -62,7 +63,6 @@ void iwdg_task(void *pdata)
 	{
 		IWDG_Feed();
 		OSTimeDlyHMSM(0, 0, 0, 500);
-	
 	}
 }
 
@@ -70,60 +70,60 @@ void iwdg_task(void *pdata)
 void basic_message_task(void *pdata)
 {
 	Time_Def real_time;
-	unsigned char minutes = 0;
-	unsigned char hours = 0;
-	unsigned char last_minutes = 0xff;
-	unsigned char last_hours = 0xff;
-	unsigned char rainfall_data[3] = {0};
-	unsigned char waterlevel_data[4] = {0};
-	float five_minute_rainfall = 0;
-	float rainfall_threshold = 0;
+	unsigned char minutes = 0;                           //分钟
+	unsigned char hours = 0;										         //小时
+	unsigned char last_minutes = 0xff;					         //上一分钟
+	unsigned char last_hours = 0xff;						         //上以小时	
+	unsigned char rainfall_data[3] = {0};				         //雨量数据
+	unsigned char waterlevel_data[4] = {0};				       //水位数据
+	float five_minute_rainfall = 0;								       //五分钟雨量
+	float rainfall_threshold = 0;										     //降雨阈值
 	RTU_operation_parameters_t rtu_paramters = {0};
 	volatile int wait_time = 0;
 	unsigned char message = 0;
-	unsigned char ftp_time_interval = FTP_TIME_INTERVAL_MINUTES;
+	unsigned char ftp_time_interval = FTP_TIME_INTERVAL_MINUTES;   //FTP分钟时间间隔
 
 	while(1)
 	{
-		RTC_ReadDate(&real_time);
-		minutes = BCDTimeTodata(real_time.minute);
-		hours = BCDTimeTodata(real_time.hour);
-		if ((minutes % 5 == 0) & (minutes != last_minutes))       //5 min 加报  数据采集,数据存储
+		RTC_ReadDate(&real_time);                            //读RTC实时数据寄存器 参数 TRUE/FALSE
+		minutes = BCDTimeTodata(real_time.minute);           //分钟
+		hours = BCDTimeTodata(real_time.hour);               //小时
+		if ((minutes % 5 == 0) & (minutes != last_minutes))  //5 min 加报  数据采集,数据存储
 		{
 			
 			RTU_parameters_Readdata(&rtu_paramters);
 			SaveAndGetData_FiveMinute(rainfall_data, waterlevel_data);  //存储采集数据到FLASH，并将数据提取出来
-			last_minutes = minutes;	
-			plus_message_init();
-			if((minutes == 0) & (hours != last_hours))		//小时报
+			last_minutes = minutes;														          //记录上次时间		
+			plus_message_init();															          //报文初始化
+			if((minutes == 0) & (hours != last_hours))				          //小时报
 			{
 				last_hours = hours;
-				hour_message_init();
-				RS232_3_Send_buf((unsigned char *)&g_hour_message, sizeof(g_hour_message));   
-				//gprs_send_string_len((unsigned char *)&g_hour_message, sizeof(g_hour_message));
+				hour_message_init();                                                               //使得发报时间与观察时间
+				RS232_3_Send_buf((unsigned char *)&g_hour_message, sizeof(g_hour_message));        //RS232发送时间信息
+				//gprs_send_string_len((unsigned char *)&g_hour_message, sizeof(g_hour_message));  //GPRS发送时间数据
 				sw_log("basic_message_task", SW_LOG_LEVEL_QUIET, "send hour message\r\n");
 			}
 			five_minute_rainfall =  BCDSendataToFloat(FIVE_MIN_PRECIPIT_ID, g_plus_message.plus_message_content.five_min_precipit_data);
 			rainfall_threshold = BCDSendataToFloat(0x0008, (unsigned char *)&rtu_paramters.threshold_rainfall_value_of_plusemessage);
-			if(five_minute_rainfall >= rainfall_threshold)
+			if(five_minute_rainfall >= rainfall_threshold)                      //五分钟的雨量大于雨量阈值
 			{
 				sw_log("basic_message_task", SW_LOG_LEVEL_QUIET, "send plus message\r\n");
 				RS232_3_Send_buf((unsigned char *)&g_plus_message, sizeof(g_plus_message));
 				//gprs_send_string_len((unsigned char *)&g_plus_message, sizeof(g_plus_message));	
 			}	
-			ftp_time_interval -= 5;
-			if(!ftp_time_interval)   //发报然后直接进入待机模式，后面应该加上响应下报的时间；
+			ftp_time_interval -= 5;     //FTP时间间隔（每隔5分钟）
+			if(!ftp_time_interval)      //发报然后直接进入待机模式，后面应该加上响应下报的时间；
 			{
-				POE_ON(); 
+				POE_ON();     //POE脚PD3打开
 				ftp_time_interval = FTP_TIME_INTERVAL_MINUTES; //重新复位初始值；		
-				OSTaskResume(FTP_TASK_PRIO); 
+				OSTaskResume(FTP_TASK_PRIO);             //开启FTP任务
 				sw_log("basic_message_task", SW_LOG_LEVEL_QUIET	, "wating to save picture,max time is 120s\r\n");
 				wait_time = FTP_SAVE_MAX_WAIT_TIME;
-				while(wait_time) //判断是否FTP存储图片成功，
+				while(wait_time)                  //判断是否FTP存储图片成功，
 				{
 					if(g_save_picture_flag == 1)
 					{
-						g_save_picture_flag = 0; 
+						g_save_picture_flag = 0;     //清除标志位
 						break;
 					}
 					else

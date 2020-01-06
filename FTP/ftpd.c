@@ -13,8 +13,8 @@
 #define FTP_DEBUG 1
 #define SELECT_PICTURE_COUNT 2
 
-volatile char g_save_picture_flag = 0;
-char filename[256];          //文件名字
+volatile char g_save_picture_flag = 0;               //GPRS 保存图片标志位
+char filename[256];                                  //文件名字
 int g_send_sockfd=0;
 int m = 0;
 static struct ftp_session* session_list = NULL;
@@ -749,7 +749,6 @@ void ftpd_start()
 {
 	struct sockaddr_in server_addr;
 	
-
 	g_send_sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (g_send_sockfd < 0)
 	{

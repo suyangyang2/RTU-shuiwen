@@ -416,10 +416,10 @@ void plus_message_init(void)
 	static int real_rainfall_data_count = 0;
 	static int last_fiveminute_rainfall_data_count = 0;
 	float fiveminute_rainfall_float_data = 0;		//float意味真实float意义数据
-	int real_waterlevel_integer_data = 0;	        //通过格雷码转换后的十进制数
+	int real_waterlevel_integer_data = 0;	      //通过格雷码转换后的十进制数
 	float real_waterlevel_float_data = 0;
 	float cumcumula_rainfall_float_data = 0;
-	int real_waterlevel_store_data = 0;    //store 发送数据拼接
+	int real_waterlevel_store_data = 0;         //store 发送数据拼接
 	int fiveminute_rainfall_store_data = 0;
 	int cumcumula_rainfall_store_data = 0;
 	int volatage_store_data  = 0x1200;
